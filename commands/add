@@ -1,0 +1,13 @@
+#!/bin/bash
+
+repository_name=${!#}
+repositories_path=~/.devenv/repositories
+new_repository_path=$repositories_path/$repository_name
+
+if [ ! -f $repositories_path ]; then
+  mkdir $repositories_path
+fi
+
+if [ ! -f $new_repository_path ]; then
+  git clone https://github.com/$repository_name.git $new_repository_path
+fi

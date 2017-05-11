@@ -1,0 +1,8 @@
+#!/bin/bash
+
+command=$1
+arguments=${*:2}
+
+if [ $command = 'add' ]; then
+  ~/.devenv/devenv/commands/add $arguments
+fi
