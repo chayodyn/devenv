@@ -7,10 +7,13 @@ if ! dscl . -read /Groups/admin GroupMembership | grep $(whoami); then
     exit
   fi
   echo "* Local admin rights given to current user"
+else
+  echo "* Local admin rights found for current user"
 fi
 
 #Make sure Xcode command line tools are installed with OS updates
-if ! xcode-select -p; then
+if ! xcode-select -p > /dev/null 2>&1; then
+  echo "* Triggering Xcode command line tools install
   touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 fi
 
