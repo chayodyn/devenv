@@ -1,6 +1,7 @@
 #!/bin/bash
 
-#Make sure admin rights are available
+echo ''
+echo '* Verifying that admin rights are available.'
 if ! dscl . -read /Groups/admin GroupMembership | grep $(whoami); then
   if ! sudo dscl . -append /Groups/admin GroupMembership $(whoami); then
     echo '* Local admin privileges not available and unable to grant admin rights to current user.  Grant admin rights to current user and run install script again.'
@@ -11,15 +12,18 @@ else
   echo '* Local admin rights found for current user'
 fi
 
-#Make sure Xcode command line tools are installed with OS updates
+echo ''
+echo '* Verifying that Xcode command line tools are installed.'
 if ! xcode-select -p > /dev/null 2>&1; then
   echo '* Triggering Xcode command line tools install'
   touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 fi
 
 #Make sure OS is updated
+echo ''
 echo '* Checking for software updates from Apple.'
-sudo softwareupdate -ia
+echo '* If a restart is required, the OS will automatically do so.  If a restart happens, run this install script again using the same command after the restart is complete.'
+sudo softwareupdate -ia --restart
 
 if defaults read /Library/Updates/index.plist InstallAtLogout; then
   echo '*****************************************'
@@ -30,25 +34,32 @@ if defaults read /Library/Updates/index.plist InstallAtLogout; then
   exit
 fi
 
-
+echo ''
 echo '* Verifying installation of Homebrew'
 if ! which brew; then
   echo '* Homebrew not found.  Installing Homebrew.'
-  /usr/bin/ruby -e '$(curl -fsSl https://raw.githubusercontent.com/Homebrew/install/master/install)'
+  /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 fi
+
+echo ''
 echo '* Updating Homebrew'
 brew update
 brew upgrade
 
+echo ''
 echo '* Verifying installation of Homebrew Cask'
 brew tap caskroom/cask
 
+echo ''
 echo '* Verifying installation of Git'
 brew install git
 
+echo ''
 echo '* Checking for SSH keys to enable GitHub access via SSH.'
 github_ssh_key_filename=github_cli_rsa
-if ! [ -e ~/.ssh/$github_ssh_key_filename ]; then
+# if ! [ -e ~/.ssh/$github_ssh_key_filename ]; then
+# if ! ssh -T -o StrictHostKeyChecking=no git@github.com; then
+if ssh -o StrictHostKeyChecking=no -q git@github.com; [ $? -eq 255 ]; then
   echo '* Setting up git to connect to your GitHub account via SSH.'
   read -p 'Please enter the email address associated with your GitHub account: ' github_email
 
@@ -60,28 +71,30 @@ if ! [ -e ~/.ssh/$github_ssh_key_filename ]; then
   echo 'Host *' >> ~/.ssh/config
   echo ' AddKeysToAgent yes' >> ~/.ssh/config
   echo ' UseKeychain yes' >> ~/.ssh/config
-  echo ' IdentityFile ~/.ssh/$github_ssh_key_filename' >> ~/.ssh/config
+  echo " IdentityFile ~/.ssh/$github_ssh_key_filename" >> ~/.ssh/config
   ssh-add -K ~/.ssh/$github_ssh_key_filename
-  
-  echo '* Copying new key to clipboard.'
-  pbcopy < ~/.ssh/$github_ssh_key_filename.pub
   
   echo '* You will now be taken to the SSH Keys page for your GitHub account. You will need to add the new RSA keys that were just generated to your GitHub account in order to enable access to GitHub via SSH from this computer by doing the following:'
   echo '    1. If prompted, log into your account'
-  echo '    2. Click the “New SSH key” button on the page.  You should see a new section appear on the page asking for information about the new key.'
-  echo '    3. Give the new key a title.  This can be anything.  It is recommended that you use something that will let you know that this new key is associated with this computer’s access to GitHub.'
-  echo '    4. Paste the contents of the clipboard into the Key field (right click and paste, Cmd + V, etc).'
-  echo '    5. Click the “Add SSH key” button to complete adding the new SSH key'
-  echo '    6. Consider removing any unused SSH keys from this page (such as those for computers that are no longer in use) by clicking the “delete” button next to any such keys.'
-  
+  echo '    2. Give the new key a title.  This can be anything.  It is recommended that you use something that will let you know that this new key is associated with this computer’s access to GitHub.'
+  echo '    3. Paste the contents of the clipboard into the Key field (right click and paste, Cmd + V, etc).'
+  echo '    4. Click the “Add SSH key” button to complete adding the new SSH key'
+  echo '    5. Consider removing any unused SSH keys from this page (such as those for computers that are no longer in use) by clicking the “delete” button next to any such keys.'
+  echo ''  
   read -n 1 -s -p "Press any key to open GitHub’s SSH keys page..."; echo "";
-  open https://www.github.com/settings/keys
+
+  echo '* Copying new key to clipboard.'
+  pbcopy < ~/.ssh/$github_ssh_key_filename.pub
+  open https://www.github.com/settings/ssh/new
+
+  echo ''
   read -n 1 -s -p "When finished adding the SSH key to GitHub, press any key to proceed..."; echo "";
 fi
 
-
+echo ''
 echo '* Checking for HTTPS keys to enable GitHub access via HTTPS.'
-if ! git config --global --get-all credential.helper | grep -q 'osxkeychain'; then
+#if ! git config --global --get-all credential.helper | grep -q 'osxkeychain'; then
+if ! $(git config --global --get-all credential.helper | grep -q 'osxkeychain') || [ -z $(printf "host=github.com\nprotocol=https\nusername=chayodyn" | git credential-osxkeychain store) ]; then
   echo '* Configuring git credential helper to access HTTP'
   git config --global --add credential.helper osxkeychain
 
@@ -89,13 +102,12 @@ if ! git config --global --get-all credential.helper | grep -q 'osxkeychain'; th
   read -n 1 -p "Does your GitHub account use Two-factor Authentication (2FA)? (y/n): " uses_2fa; echo ""
   if [ $uses_2fa = 'y' ] || [ $uses_2fa = ‘Y’ ]; then
     echo '* In order to enable HTTP access to GitHub with 2FA enabled, you will need to provide a Personal Access Token from your GitHub account.  You will now be taken to the Personal Access Tokens page for your GitHub account in order to create one of these keys. Once created, you will need to provide the new token in order to enable access.  Please do the following:'
-    echo '    1. Go to the Personal Access Token page in your GitHub account (this will be done for you automatically by pressing a key below).'
-    echo '    2. If prompted, log into your account.'
-    echo '    3. In the “Token description” field, enter a label for the new key.  This can be anything.  It is recommended that you use something that will let you know that this new token is associated with this computer’s access to GitHub.'
-    echo '    4. In the “Select scopes” section, select the checkbox next to “repo” and make sure that all the other boxes under “repo” are also selected.'
-    echo '    5. Click the “Generate token” button and you will be taken back to the Personal Access Token page. The new token should be displayed here.'
-    echo '    6. Copy the token value to the clipboard (there should also be an icon next to the token that will do this for you).'
-    echo '    7. Paste or enter the token in the prompt here to proceed.'
+    echo '    1. If prompted, log into your account.'
+    echo '    2. In the “Token description” field, enter a label for the new key.  This can be anything.  It is recommended that you use something that will let you know that this new token is associated with this computer’s access to GitHub.'
+    echo '    3. In the “Select scopes” section, select the checkbox next to “repo” and make sure that all the other boxes under “repo” are also selected.'
+    echo '    4. Click the “Generate token” button and you will be taken back to the Personal Access Token page. The new token should be displayed here.'
+    echo '    5. Copy the token value to the clipboard (there should also be an icon next to the token that will do this for you).'
+    echo '    6. Paste or enter the token in the prompt here to proceed.'
     read -p "Press any key to open GitHub’s Personal Access Token page..."
     open https://www.github.com/settings/tokens/new
     read -s -p 'Please enter (or paste) the generated token from GitHub here: ' github_password
@@ -105,27 +117,24 @@ if ! git config --global --get-all credential.helper | grep -q 'osxkeychain'; th
   printf "host=github.com\nprotocol=https\nusername=$github_username\npassword=$github_password\n\n" | git credential-osxkeychain store
 fi
 
+echo ''
 if ! [[ $(git config --global user.name) ]]; then
   echo 'Please enter the name you would like associated with your commits to GitHub.  This can be your real name, nickname, username, etc.'
   read -p 'Please enter the name you wish to use with GitHub: ' github_name
   git config --global user.name "$github_name"
 fi
 
+echo ''
 if ! [[ $(git config --global user.email) ]]; then
   echo 'Please enter the email address you would like associated with your commits to GitHub.'
   read -p "Please enter the email address you wish to use with GitHub: " github_email
   git config --global user.email "$github_email"
 fi
 
+echo ''
 git clone https://github.com/chayodyn/devenv.git ~/.devenv/devenv
 ln -s ~/.devenv/devenv/devenv /usr/local/devenv
 chmod +x ~/.devenv/devenv/devenv
-
-
-
-
-#bash -c "$(cat install.sh)"
-#16e421c79710ee9562c0fe1a4719ee61a73fe4c3
 
 
 
