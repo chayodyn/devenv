@@ -16,7 +16,7 @@ echo ''
 echo '* Verifying that Xcode command line tools are installed.'
 if ! xcode-select -p > /dev/null 2>&1; then
   echo '* Triggering Xcode command line tools install'
-  touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+  xcode-select --install
 fi
 
 #Make sure OS is updated
